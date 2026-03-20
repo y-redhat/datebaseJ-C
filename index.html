@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>日中歴史データベース ｜ P2P GPS連携</title>
+    <style>
+        /* --- デザインの基盤: カクカクした硬質なスタイル --- */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
+        }
+        body {
+            background-color: #f0f2f5;
+            color: #1a1a1a;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: #ffffff;
+            border: 2px solid #222; /* 太めの枠線 */
+            box-shadow: 8px 8px 0px #aaa; /* 平面的な影 */
+        }
+
+        /* --- ヘッダー --- */
+        .header {
+            background: #1a365d; /* 濃紺 */
+            color: white;
+            padding: 1.5rem;
+            border-bottom: 4px solid #b22234; /* アクセントの赤 */
+        }
+        .header h1 {
+            font-size: 1.5rem;
+            letter-spacing: 2px;
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+        }
+        .header p {
+            font-size: 0.85rem;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 1.5rem;
+        }
+
+        /* --- ステータスセクション (GPS) --- */
+        .section-box {
+            border: 1px solid #333;
+            margin-bottom: 1.5rem;
+            padding: 1rem;
+            background: #fafafa;
+        }
+        .section-title {
+            background: #333;
+            color: #fff;
+            display: inline-block;
+            padding: 2px 12px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .location-detail {
+            font-family: "Courier New", Courier, monospace;
+            font-size: 0.95rem;
+            background: #eee;
+            padding: 10px;
+            border-left: 5px solid #2c7da0;
+        }
+
+        /* --- 認証エリア --- */
+        .auth-grid {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        input[type="password"] {
+            border: 1px solid #333;
+            padding: 10px;
+            font-size: 1rem;
+            border-radius: 0; /* 角を丸めない */
+            width: 100%;
+        }
+        button {
+            background: #222;
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            cursor: pointer;
+            font-weight: bold;
+            border-radius: 0;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background: #b22234;
+        }
+        #skipBtn {
+            background: #666;
+        }
+
+        /* --- データベーステーブル形式 --- */
+        .db-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        .db-table th, .db-table td {
+            border: 1px solid #ccc;
+            padding: 12px;
+            text-align: left;
+        }
+        .db-table th {
+            background: #f4f4f4;
+            font-size: 0.85rem;
+            color: #555;
+            width: 25%;
+        }
+        .db-table tr:nth-child(even) {
+            background: #f9f9f9;
+        }
+        .year-label {
+            font-weight: bold;
+            color: #b22234;
+            font-size: 1rem;
+        }
+
+        /* --- P2P ログ形式 --- */
+        .p2p-log {
+            background: #000;
+            color: #00ff41; /* ターミナル風 */
+            font-family: monospace;
+            padding: 15px;
+            height: 250px;
+            overflow-y: scroll;
+            border: 2px solid #444;
+        }
+        .log-entry {
+            margin-bottom: 5px;
+            border-bottom: 1px solid #222;
+            padding-bottom: 5px;
+        }
+        .log-time { color: #888; margin-right: 10px; }
+
+        /* --- その他 --- */
+        .error-msg { color: #b22234; font-size: 0.8rem; margin-top: 5px; font-weight: bold; }
+        footer {
+            text-align: center;
+            font-size: 0.75rem;
+            padding: 20px;
+            border-top: 1px solid #ccc;
+            background: #eee;
+        }
+
+        @media (max-width: 600px) {
+            .auth-grid { grid-template-columns: 1fr; }
+            .db-table th { width: 30%; font-size: 0.75rem; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h1>Historical Database System</h1>
+        <p>日中歴史アーカイブ ｜ P2P Geo-Location 連携モジュール</p>
+    </div>
+
+    <div class="content">
+        <div class="section-box">
+            <div class="section-title">DEVICE STATUS</div>
+            <div id="locationInfo">位置情報を検索中...</div>
+            <button id="retryGpsBtn" style="display:none; margin-top:10px; padding:5px 10px; font-size:0.7rem;">RETRY GPS</button>
+        </div>
+
+        <div class="section-box">
+            <div class="section-title">ADMIN AUTHENTICATION</div>
+            <p style="font-size: 0.8rem; margin-bottom: 10px;">データベース閲覧には認証が必要です。スタッフ用パスコード (5656) を入力してください。</p>
+            <div class="auth-grid">
+                <input type="password" id="passwordInput" placeholder="PASSCODE" inputmode="numeric">
+                <div style="display:flex; gap:5px;">
+                    <button id="submitPwd">ACCESS</button>
+                    <button id="skipBtn">GUEST SKIP</button>
+                </div>
+            </div>
+            <div id="pwdMessage" class="error-msg"></div>
+        </div>
+
+        <div id="historyContainer" style="display:none;">
+            <div class="section-title">ARCHIVE DATA</div>
+            <table class="db-table" id="historyTable">
+                </table>
+        </div>
+
+        <div id="p2pContainer" style="display:none; margin-top:20px;">
+            <div class="section-title">NETWORK LIVE LOG (P2P)</div>
+            <div id="p2pList" class="p2p-log"></div>
+            <p style="font-size:0.7rem; color:#666; margin-top:5px;">※ 認証済みノードのみ表示されます。位置情報は相対座標として処理されます。</p>
+        </div>
+    </div>
+
+    <footer>
+        &copy; 2026 日中歴史データベース構築委員会 | Security Level: A
+    </footer>
+</div>
+
+<script>
+    const historicalEvents = [
+        { year: "607年〜894年", title: "遣隋使・遣唐使", desc: "文化・制度・仏教の流入。東アジア文明圏の形成。" },
+        { year: "1274年・1281年", title: "元寇 (モンゴル襲来)", desc: "フビライ・ハン率いる元軍が日本へ二度侵攻。" },
+        { year: "1894年〜1895年", title: "日清戦争", desc: "朝鮮半島の帰属を巡る衝突。下関条約による台湾割譲。" },
+        { year: "1972年", title: "日中国交正常化", desc: "田中角栄・周恩来両首相による共同声明。国交回復。" },
+        { year: "2000年代〜現在", title: "戦略的互恵関係", desc: "経済的相互依存の深化と、歴史認識等の諸課題の共存。" }
+    ];
+
+    const mockPeers = [
+        { name: "NODE_Tokyo_01", lat: 35.68, lng: 139.69 },
+        { name: "NODE_Shanghai_02", lat: 31.23, lng: 121.47 },
+        { name: "NODE_Beijing_01", lat: 39.90, lng: 116.40 }
+    ];
+
+    let currentLocation = null;
+    let isAuthorized = false;
+
+    // GPS取得
+    function getGps() {
+        const info = document.getElementById("locationInfo");
+        if (!navigator.geolocation) {
+            info.innerHTML = "Error: Geolocation not supported.";
+            return;
+        }
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                currentLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                info.innerHTML = `<div class="location-detail">CONNECTED: ${currentLocation.lat.toFixed(4)}, ${currentLocation.lng.toFixed(4)}</div>`;
+                document.getElementById("retryGpsBtn").style.display = "inline-block";
+                if(isAuthorized) renderP2P();
+            },
+            (err) => {
+                info.innerHTML = `<span style="color:red;">GPS ERROR: 許可が必要です</span>`;
+                document.getElementById("retryGpsBtn").style.display = "inline-block";
+            }
+        );
+    }
+
+    // 履歴テーブル表示
+    function renderHistory() {
+        const table = document.getElementById("historyTable");
+        table.innerHTML = "";
+        historicalEvents.forEach(ev => {
+            const row = `<tr>
+                <th><span class="year-label">${ev.year}</span></th>
+                <td><strong>${ev.title}</strong><br><span style="font-size:0.85rem;">${ev.desc}</span></td>
+            </tr>`;
+            table.innerHTML += row;
+        });
+        document.getElementById("historyContainer").style.display = "block";
+    }
+
+    // P2P ログ表示
+    function renderP2P() {
+        const log = document.getElementById("p2pList");
+        log.innerHTML = "";
+        const now = new Date().toLocaleTimeString();
+        
+        // 自ノード
+        const selfLabel = currentLocation ? `${currentLocation.lat.toFixed(2)}, ${currentLocation.lng.toFixed(2)}` : "UNKNOWN";
+        log.innerHTML += `<div class="log-entry"><span class="log-time">[${now}]</span> <span style="color:#fff;">[SELF]</span> Authenticated Node: ${selfLabel}</div>`;
+
+        // 他ノード
+        mockPeers.forEach(p => {
+            log.innerHTML += `<div class="log-entry"><span class="log-time">[${now}]</span> [PEER] ${p.name} -> Lat:${p.lat} Lng:${p.lng}</div>`;
+        });
+        document.getElementById("p2pContainer").style.display = "block";
+    }
+
+    // イベント
+    document.getElementById("submitPwd").onclick = () => {
+        const val = document.getElementById("passwordInput").value;
+        if(val === "5656") {
+            isAuthorized = true;
+            document.getElementById("pwdMessage").innerHTML = "Access Granted.";
+            document.getElementById("pwdMessage").style.color = "green";
+            renderHistory();
+            renderP2P();
+        } else {
+            document.getElementById("pwdMessage").innerHTML = "Error: Invalid Passcode.";
+        }
+    };
+
+    document.getElementById("skipBtn").onclick = () => {
+        renderHistory();
+        document.getElementById("p2pContainer").style.display = "none";
+    };
+
+    document.getElementById("retryGpsBtn").onclick = getGps;
+
+    // 初期起動
+    getGps();
+
+</script>
+</body>
+</html>
